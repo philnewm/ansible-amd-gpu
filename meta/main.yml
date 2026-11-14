@@ -2,20 +2,27 @@
 
 galaxy_info:
   role_name: amd_gpu
-  namespace: philnewm
-  author: author_name
-  description: ansible-role-template description
-  license: some_license
+  author: philnewm
+  description: Configure rocm repos and install packages for amd gpus
+  license: MIT
   min_ansible_version: "2.1"
   platforms:
     - name: EL
       versions:
         - "9"
+    - name: Fedora
+      versions:
+        - "44"
     - name: Debian
       versions:
-        - "bookworm"
+        - "trixie"
     - name: "Ubuntu"
       versions:
-        - "jammy"
-  galaxy_tags: []
+        - "noble"
+        - "resolute"
+  galaxy_tags:
+    - gpu
+    - amd
+    - rocm
+    - compute
 dependencies: []
