@@ -1,8 +1,76 @@
 ---
 
-- name: Remove unused dependencies
+- name: Get version numbers
+  ansible.builtin.set_fact:
+    rocm_major: "{{ (amd_gpu_rocm_version | split('.'))[0] | int }}"
+    rocm_minor: "{{ (amd_gpu_rocm_version | split('.'))[1] | int }}"
+
+- name: Remove rocm packages from fedora
   become: true
+  when: ansible_facts.distribution | lower == "fedora"
   ansible.builtin.package:
-    autoremove: true
+    name: "{{ amd_gpu_rocm_fedora }}"
+    state: absent
+
+- name: Remove from rocm from redhat
+  when:
+    - ansible_facts.os_family | lower == "redhat"
+    - ansible_facts.distribution | lower != "fedora"
+  block:
+    - name: Remove rocm packages
+      become: true
+      vars:
+        package_map:
+          7: "{{ amd_gpu_rocm7 }}"
+          10: "{{ amd_gpu_rocm10 | product(['-' ~ amd_gpu_rocm_version]) | map('join') | list }}"
+      when: ansible_facts.distribution | lower != "fedora"
+      ansible.builtin.dnf:
+        name: "{{ package_map[rocm_major] }}"
+        state: absent
+
+    - name: "Remove ROCm repo from {{ ansible_facts.distribution }}"
+      become: true
+      ansible.builtin.yum_repository:
+        name: rocm{{ amd_gpu_rocm_version }}
+        state: absent
+      register: repo_setup
+
+    - name: Clean package cache
+      become: true
+      ansible.builtin.command:
+        cmd: dnf clean all
+      changed_when: true
+
+- name: Remove from rocm from debian
+  when: ansible_facts.os_family | lower == "debian"
+  block:
+    - name: Remove rocm packages
+      become: true
+      vars:
+        package_map:
+          7: "{{ amd_gpu_rocm7 }}"
+          10: "{{ amd_gpu_rocm10 | product([rocm_major ~ '.' ~ rocm_minor]) | map('join') | list }}"
+      ansible.builtin.apt:
+        name: "{{ package_map[rocm_major] }}"
+        state: absent
+
+    - name: "Remove ROCm repo from {{ ansible_facts.distribution }}"
+      become: true
+      when: ansible_facts.os_family | lower == "debian"
+      ansible.builtin.deb822_repository:
+        name: rocm{{ amd_gpu_rocm_version }}
+        state: absent
+      register: repo_setup
+
+    - name: Clean package cache
+      become: true
+      ansible.builtin.apt:
+        clean: true
+
+- name: Clean package cache
+  become: true
+  when: repo_setup.changed  # noqa: no-handler
+  ansible.builtin.package:
+    update_cache: true
 
 ...

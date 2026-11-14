@@ -1,0 +1,99 @@
+---
+
+# https://rocm.docs.amd.com/en/latest/install/rocm.html?fam=all&w=compute&os=rocky-linux&i=pkgman&rocky-linux-ver=9
+
+- name: Ensure epel repo
+  become: true
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+
+- name: Ensure DNF plugins are present
+  become: true
+  ansible.builtin.dnf:
+    name: dnf-plugins-core
+    state: present
+
+- name: Enable crb repository
+  become: true
+  community.general.dnf_config_manager:
+    name: crb
+    state: enabled
+
+- name: Install requirements
+  become: true
+  when: rocm_major >= 10
+  ansible.builtin.dnf:
+    name:
+      - libatomic
+      - libquadmath
+    state: present
+
+- name: "Add ROCm repo for {{ ansible_facts.distribution }}"
+  become: true
+  vars:
+    major: "{{ rocm_major }}"
+    os_fam: "{{ ansible_facts.os_family | lower }}"
+  ansible.builtin.yum_repository:
+    name: rocm{{ amd_gpu_rocm_version }}
+    description: "ROCm {{ amd_gpu_rocm_version }} repository"
+    baseurl: "{{ amd_gpu_rocm_repo[major][os_fam].baseurl }}"
+    enabled: true
+    gpgcheck: true
+    cost: 100
+    gpgkey: "{{ amd_gpu_rocm_repo[major].gpgkey }}"
+  register: repo_setup
+
+- name: Clean package cache
+  become: true
+  when: repo_setup.changed  # noqa: no-handler
+  ansible.builtin.command:
+    cmd: dnf clean all
+  changed_when: true
+
+- name: Set package list
+  vars:
+    common_packages: "{{ amd_gpu_packages[ansible_facts.distribution | lower] | flatten }}"
+    rocm_packages: "{{ package_map[rocm_major] }}"
+    package_map:
+      7: "{{ amd_gpu_rocm7 }}"
+      10: "{{ amd_gpu_rocm10 | product(['-' ~ amd_gpu_rocm_version]) | map('join') | list }}"
+  ansible.builtin.set_fact:
+    package_list: "{{ common_packages + rocm_packages }}"
+
+- name: Install packages
+  become: true
+  ansible.builtin.dnf:
+    name: "{{ package_list }}"
+    state: present
+    update_cache: true
+
+- name: Gather system groups
+  ansible.builtin.getent:
+    database: group
+
+- name: Ensure ROCm-required groups exist
+  ansible.builtin.assert:
+    that:
+      - "'video' in ansible_facts.getent_group"
+      - "'render' in ansible_facts.getent_group"
+    fail_msg: >-
+      ROCm installation is inconsistent: required groups are missing.
+      video={{ 'video' in ansible_facts.getent_group }},
+      render={{ 'render' in ansible_facts.getent_group }}
+    quiet: true
+
+- name: Create symlinks
+  become: true
+  loop:
+    - amd-smi
+    - rocminfo
+  loop_control:
+    loop_var: executable
+  when: rocm_major >= 10
+  ansible.builtin.file:
+    src: "/opt/rocm/core-{{ rocm_major }}.{{ rocm_minor }}/bin/{{ executable }}"
+    dest: "/usr/local/bin/{{ executable }}"
+    state: link
+
+...

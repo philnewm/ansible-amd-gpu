@@ -1,4 +1,49 @@
 ---
 
+- name: Get smi installation fedora
+  when: ansible_facts.distribution | lower == "fedora"
+  ansible.builtin.command:
+    cmd: rocm-smi --version --json
+  register: amd_smi_fedora
+  changed_when: false
+  failed_when: amd_smi_fedora.rc != 0
+
+- name: Rocm repo based installs
+  when: ansible_facts.distribution | lower != "fedora"
+  block:
+    - name: Get version numbers
+      ansible.builtin.set_fact:
+        rocm_major: "{{ (amd_gpu_rocm_version | split('.'))[0] | int }}"
+        rocm_minor: "{{ (amd_gpu_rocm_version | split('.'))[1] | int }}"
+
+    - name: Check smi is installed
+      ansible.builtin.command:
+        argv:
+          - which
+          - "{{ amd_gpu_smi_cmd[rocm_major] }}"
+      changed_when: false
+
+    - name: Check for AMD GPU driver
+      ansible.builtin.stat:
+        path: /sys/module/amdgpu
+      register: amdgpu_module
+
+    - name: Run smi command
+      when: amdgpu_module.stat.exists
+      ansible.builtin.command:
+        cmd: "{{ amd_gpu_smi_cmd[rocm_major] }}"
+      changed_when: false
+
+    - name: Get rocm version
+      ansible.builtin.command:
+        cmd: "cat {{ amd_gpu_rocm_version_query[rocm_major] }}"
+      register: rocm_version_output
+      changed_when: false
+      failed_when: rocm_version_output.rc != 0
+
+    - name: Assert version
+      ansible.builtin.assert:
+        that: rocm_version_output.stdout == amd_gpu_rocm_version
+        quiet: true
 
 ...
