@@ -1,6 +1,9 @@
 ---
 
 state: present
+
 amd_gpu_rocm_version: 10.1.0
+amd_gpu_vars_file: null
+amd_gpu_local_mirror: null
 
 ...
