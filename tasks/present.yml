@@ -1,4 +1,20 @@
 ---
 
+- name: Get version numbers
+  ansible.builtin.set_fact:
+    rocm_major: "{{ (amd_gpu_rocm_version | split('.'))[0] | int }}"
+    rocm_minor: "{{ (amd_gpu_rocm_version | split('.'))[1] | int }}"
+
+- name: Include install method
+  when: ansible_facts.distribution | lower != "fedora"
+  ansible.builtin.include_tasks:
+    file: "{{ ansible_facts.os_family | lower }}.yml"
+
+- name: Install distro packages
+  become: true
+  when: ansible_facts.distribution | lower == "fedora"
+  ansible.builtin.package:
+    name: "{{ amd_gpu_packages[ansible_facts.distribution | lower] | flatten + amd_gpu_rocm_fedora }}"
+    state: present
 
 ...

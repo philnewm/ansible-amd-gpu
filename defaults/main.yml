@@ -1,5 +1,6 @@
 ---
 
 state: present
+amd_gpu_rocm_version: 10.1.0
 
 ...

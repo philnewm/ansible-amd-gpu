@@ -1,5 +1,84 @@
 ---
 
-ansible_role_template: "Default role name still in use."
+amd_gpu_packages:
+  default: &amd_default_packages
+    - mesa-vulkan-drivers
+  redhat: &amd_rhel_packages
+    - *amd_default_packages
+    - mesa-dri-drivers
+  centos:
+    - *amd_rhel_packages
+  almalinux:
+    - *amd_rhel_packages
+  rocky:
+    - *amd_rhel_packages
+  fedora:
+    - *amd_default_packages
+  debian:
+    - *amd_default_packages
+    - firmware-amd-graphics
+    - libgl1-mesa-dri
+  ubuntu:
+    - *amd_default_packages
+    - libgl1-mesa-dri
+
+amd_gpu_rocm_fedora:
+  - rocm-hip
+  - rocm-opencl
+  - hiprt
+  - rocm-smi
+  - rocminfo
+
+amd_gpu_rocm_repo:
+  7:
+    gpgkey: https://repo.radeon.com/rocm/rocm.gpg.key
+    debian:
+      baseurl: "https://repo.radeon.com/rocm/apt/{{ amd_gpu_rocm_version }}"
+      suites: "{{ debian_release_map[ansible_facts.distribution_release | lower] }}"
+    redhat:
+      baseurl: "https://repo.radeon.com/rocm/el{{ ansible_facts.distribution_major_version }}/{{ amd_gpu_rocm_version }}/main"
+  10:
+    gpgkey: https://stable.repo.amd.com/rocm/gpg/packages.gpg
+    debian:
+      baseurl: "https://stable.repo.amd.com/rocm/core/packages/{{ rocm_repo_distro }}"
+      suites: "stable"
+    redhat:
+      baseurl: "https://stable.repo.amd.com/rocm/core/packages/rhel{{ ansible_facts.distribution_major_version }}/{{ ansible_facts.architecture }}"
+
+amd_gpu_rocm7:
+  - rocm-hip-runtime
+  - rocm-opencl-runtime
+  - rocminfo
+  - rocm-smi  # TODO check if it works on debian
+
+# package name transition
+# https://rocm.docs.amd.com/en/latest/about/transition-guide-TheRock.html
+amd_gpu_rocm10:
+  - amdrocm-base
+  - amdrocm-amdsmi
+  - amdrocm-runtime
+  - amdrocm-opencl
+
+debian_release_map:
+  "bookworm": "jammy"
+  "trixie": "noble"
+  "jammy": "jammy"
+  "noble": "noble"
+  "resolute": "noble"
+
+rocm_repo_distro: >-
+  {{ ansible_facts.distribution | lower }}{{
+      ansible_facts.distribution_version | replace('.', '')
+      if ansible_facts.distribution == 'Ubuntu'
+      else ansible_facts.distribution_major_version
+  }}
+
+amd_gpu_rocm_version_query:
+  10: "/opt/rocm/core-{{ rocm_major }}.{{ rocm_minor }}/.info/version"
+  7: "/opt/rocm/.info/version"
+
+amd_gpu_smi_cmd:
+  10: "amd-smi"
+  7: "rocm-smi"
 
 ...

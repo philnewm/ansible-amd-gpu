@@ -1,0 +1,108 @@
+---
+
+- name: Enable Debian non-free-firmware repository
+  become: true
+  when: ansible_facts.distribution | lower == "debian"
+  ansible.builtin.deb822_repository:
+    name: debian
+    types:
+      - deb
+    uris:
+      - http://deb.debian.org/debian
+    suites:
+      - trixie
+      - trixie-updates
+    components:
+      - main
+      - non-free-firmware
+    signed_by: /usr/share/keyrings/debian-archive-keyring.gpg
+    state: present
+    install_python_debian: true
+  register: debian_repository
+
+- name: Install requirements
+  become: true
+  when: rocm_major >= 10
+  ansible.builtin.apt:
+    name:
+      - libatomic1
+      - libquadmath0
+    state: present
+
+- name: Add ROCm repository
+  become: true
+  vars:
+    major: "{{ rocm_major }}"
+    os_fam: "{{ ansible_facts.os_family | lower }}"
+  ansible.builtin.deb822_repository:
+    name: "amdrocm-{{ amd_gpu_rocm_version }}"
+    types: [deb]
+    uris: ["{{ amd_gpu_rocm_repo[major][os_fam].baseurl }}"]
+    suites: "{{ amd_gpu_rocm_repo[major][os_fam].suites }}"
+    components: [main]
+    architectures: [amd64]
+    enabled: true
+    signed_by: "{{ amd_gpu_rocm_repo[major].gpgkey }}"
+    state: present
+    install_python_debian: true
+
+- name: Set repo priority  # prevent ubuntu updates repo conflicts
+  become: true
+  vars:
+    os_fam: "{{ ansible_facts.os_family | lower }}"
+  when: rocm_major < 10
+  ansible.builtin.copy:
+    dest: "/etc/apt/preferences.d/amdrocm-{{ amd_gpu_rocm_version }}.pref"
+    content: |
+      Package: *
+      Pin: release o={{ amd_gpu_rocm_repo[rocm_major][os_fam].baseurl | urlsplit("hostname") }},a={{ debian_release_map[ansible_facts.distribution_release | lower] }}
+      Pin-Priority: 700
+    mode: "0644"
+
+- name: Set package list
+  vars:
+    common_packages: "{{ amd_gpu_packages[ansible_facts.distribution | lower] | flatten }}"
+    rocm_packages: "{{ package_map[rocm_major] }}"
+    package_map:
+      7: "{{ amd_gpu_rocm7 }}"
+      10: "{{ amd_gpu_rocm10 | product([rocm_major ~ '.' ~ rocm_minor]) | map('join') | list }}"
+  ansible.builtin.set_fact:
+    package_list: "{{ common_packages + rocm_packages }}"
+
+- name: Install packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ package_list }}"
+    state: present
+    update_cache: true
+
+- name: Gather system groups
+  ansible.builtin.getent:
+    database: group
+
+- name: Ensure groups are present
+  become: true
+  loop:
+    - video
+    - render
+  loop_control:
+    loop_var: rocm_group
+  when: rocm_group not in ansible_facts.getent_group
+  ansible.builtin.group:
+    name: "{{ rocm_group }}"
+    state: present
+
+- name: Create symlinks
+  become: true
+  loop:
+    - amd-smi
+    - rocminfo
+  loop_control:
+    loop_var: executable
+  when: rocm_major >= 10
+  ansible.builtin.file:
+    src: "/opt/rocm/core-{{ rocm_major }}.{{ rocm_minor }}/bin/{{ executable }}"
+    dest: "/usr/local/bin/{{ executable }}"
+    state: link
+
+...
