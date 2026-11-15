@@ -10,10 +10,35 @@
     rocm_major: "{{ (amd_gpu_rocm_version | split('.'))[0] | int }}"
     rocm_minor: "{{ (amd_gpu_rocm_version | split('.'))[1] | int }}"
 
-- name: Include install method
+- name: Setup rocm for via package manager
   when: ansible_facts.distribution | lower != "fedora"
-  ansible.builtin.include_tasks:
-    file: "{{ ansible_facts.os_family | lower }}.yml"
+  block:
+    - name: Include install method
+      ansible.builtin.include_tasks:
+        file: "{{ ansible_facts.os_family | lower }}.yml"
+
+    - name: Check whether hip runtime is discoverable
+      ansible.builtin.command:
+        cmd: ldconfig -p
+      register: ldconfig_cache
+      changed_when: false
+
+    # required due to https://github.com/ROCm/TheRock/issues/6716
+    # fedora ignores version anyway
+    - name: Register rocm library
+      become: true
+      when: >-
+        (
+          '/opt/rocm/core-' ~ rocm_major ~ '.' ~ rocm_minor ~
+          '/lib/libamdhip64.so'
+        ) not in ldconfig_cache.stdout
+      ansible.builtin.copy:
+        dest: "/etc/ld.so.conf.d/rocm-{{ rocm_major }}.{{ rocm_minor }}.conf"
+        content: "/opt/rocm/core-{{ rocm_major }}.{{ rocm_minor }}/lib\n"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Update dynamic linker cache
 
 - name: Install distro packages
   become: true

@@ -46,4 +46,33 @@
         that: rocm_version_output.stdout == amd_gpu_rocm_version
         quiet: true
 
+# explicit version libs to prevent fedora errors
+# https://projects.blender.org/blender/blender/pulls/151081
+- name: Verify hip runtime can be loaded
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import ctypes
+
+        libraries = [
+            "libamdhip64.so",
+            "libamdhip64.so.7",
+            "libamdhip64.so.6",
+        ]
+
+        for library in libraries:
+            try:
+                ctypes.CDLL(library)
+                print(f"HIP runtime loaded successfully: {library}")
+                break
+            except OSError:
+                continue
+        else:
+            raise RuntimeError("Unable to load HIP runtime")
+  register: hip_runtime_check
+  changed_when: false
+  failed_when: hip_runtime_check.rc != 0
+
 ...
