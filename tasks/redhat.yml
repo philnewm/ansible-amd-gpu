@@ -36,11 +36,11 @@
     os_fam: "{{ ansible_facts.os_family | lower }}"
   ansible.builtin.yum_repository:
     name: rocm{{ amd_gpu_rocm_version }}
-    description: "ROCm {{ amd_gpu_rocm_version }} repository"
+    description: "ROCm {{ amd_gpu_rocm_version }}"
     baseurl: "{{ amd_gpu_rocm_repo[major][os_fam].baseurl }}"
     enabled: true
     gpgcheck: true
-    cost: 100
+    cost: 500
     gpgkey: "{{ amd_gpu_rocm_repo[major].gpgkey }}"
   register: repo_setup
 
