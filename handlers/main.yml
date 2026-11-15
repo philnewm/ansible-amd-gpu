@@ -1,0 +1,10 @@
+---
+
+- name: Update dynamic linker cache
+  become: true
+  ansible.builtin.command:
+    cmd: ldconfig
+  register: dyn_link_cache
+  changed_when: dyn_link_cache.rc == 0
+
+...
