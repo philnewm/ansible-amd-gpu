@@ -14,11 +14,12 @@
       - trixie-updates
     components:
       - main
+      - non-free
+      - contrib
       - non-free-firmware
     signed_by: /usr/share/keyrings/debian-archive-keyring.gpg
     state: present
     install_python_debian: true
-  register: debian_repository
 
 - name: Install requirements
   become: true
